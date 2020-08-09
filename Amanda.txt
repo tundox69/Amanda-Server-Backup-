@@ -1,0 +1,112 @@
+Amanda uses Client/Server Architecture
+Supports both tape and disk based options
+
+Amanda Backup Server on Centos 7
+
+A. Install and Configure Amanda Backup Server
+B. Set Backup Parameters
+C. Verify the Configuration and Verify the Backup
+D. Install and Configure the Amanda Linux Clients for Backup
+
+Install EPEL repo
+#yum -y install epel-release
+
+Step 1: Installing Amanda on Centos 7
+Setting up the hostname
+
+#hostnamectl set-hostname amanda-server
+#vi /etc/hosts
+ip address amanda-server amanda-server.centos.com
+#yum update -y
+
+Install Amanda Server
+#yum install amanda*
+
+Install Add on Packages
+#yum install xinetd gnuplot perl-ExtUtils-Embed
+
+Step 2: Starting Xinetd Service
+#systemctl xinetd restart
+#systemctl xinetd status
+
+Verify the Amanda Installation
+#amadin --version
+
+Step 3: Amanda Configuration Setup
+Make some directories:
+#mkdir -p /amanda /etc/amanda
+#chown amandabackup /amanda /etc/amanda
+
+Now switch to amanda backup and run the following configuration
+as amandabackup user
+#su amandabackup
+#mkdir -p /amanda/vtapes/slot{1,2,3,4}
+#mkdir -p /amanda/holding
+#mkdir -p /amanda/state/ {curinfo,log,index}
+#mkdir -p /etc/amanda/MyConfig
+
+Editing Amanda.conf file
+#vi /etc/amanda/MyConfig/amanda.conf
+
+Add the following lines as such:
+
+org "Myconfig"
+infofile "/amanda/state/curinfo"
+logdir "/amanda/state/index"
+dumpuser "amandabackup"
+
+tpchanger "chg-disk:/amanda/vtapes"
+labelstr "MyData[0-9][0-9]"
+autolabel "MyData%%" EMPTY VOLUME_ERROR
+tapecycle 4
+dumpcycle 3 days
+amrecover_changer "changer"
+
+tapetype "TET-TAPE"
+define tapetype TEST-TAPE {
+length 100 mbytes
+filemark 4 kbytes
+}
+
+define dumptype simple-gnutar-local {
+auth "local"
+compress none
+program "GNUTAR"
+}
+
+holdingdisk hdi {
+directory "/amanda/holding
+use 50 mbytes
+chunksize 1 mbyte
+}
+Next, add a "disklist" file with a single disk list entry (DLE). The 'disklist' file determines which disks will be backed up by Amanda. The file contains includefile directive or disklist entry (DLE)General usage was to describe a DLE as a partition, or file system
+
+#vi /etc/amanda/Myconfig/disklist
+Type the following:
+localhost /etc simple-gnutar-local
+
+Step 4: Check Amanda Configuration
+#amcheck MyConfig
+
+Step 5: Run Test Backup
+#amdump MyConfig
+(It will take some seconds but no output would be there)
+
+#echo $?
+You will get "0" as output. It means it has configured appropriately
+
+#amreport MyConfig
+
+Step 6: Amanda Backup Scheduling
+#crontab -e
+
+Type the following:
+0 17 * * * amandabackup /usr/sbin/amcheck -m MyConfig
+15 2 * * * amandabackup /usr/sbin/amdump MyConfig
+
+Step 7: Amanda Backup Client Installation
+#yum install amanda-client xinetd
+You can install this package on your client.
+
+NB: Install the latest Amanda Server for security purposes!
+Amanda is configured properly
